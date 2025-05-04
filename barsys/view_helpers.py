@@ -18,19 +18,18 @@ from .models import StatsDisplay, Purchase, Invoice, Product
 # Load environment variables
 load_dotenv()
 
-# Set default values for MQTT configuration
+# MQTT configuration
 MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
 MQTT_TOPIC = os.getenv("MQTT_TOPIC", "purchases")
+MQTT_TOPIC_PRICE_UPDATE = os.getenv("MQTT_TOPIC_PRICE_UPDATE", "product/price/update")
 CATEGORY_TO_NOTIFY = os.getenv("CATEGORY_TO_NOTIFY", None)  # Default to None
+PRODUCT_TO_UPDATE = os.getenv("PRODUCT_TO_UPDATE", None)
 MQTT_USERNAME = os.getenv("MQTT_USERNAME", None)
 MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", None)
 
 def send_mqtt_message(product):
     """Send an MQTT message with the product name."""
-    print(os.getenv("CATEGORY_TO_NOTIFY"))
-    print(CATEGORY_TO_NOTIFY)
-    print(product.category.name)
     if product.category.name == CATEGORY_TO_NOTIFY:
         client = mqtt.Client()
 
@@ -44,6 +43,49 @@ def send_mqtt_message(product):
             client.disconnect()
         except Exception as e:
             print(f"Failed to send MQTT message: {e}")
+
+def on_price_update(client, userdata, msg):
+    """Handle incoming MQTT messages for price updates."""
+    from barsys.models import Product  # Import models here to avoid early loading
+    try:
+        # Decode the message payload
+        new_price = float(msg.payload.decode("utf-8"))
+        product_name = os.getenv("PRODUCT_TO_UPDATE")
+
+        # Access the database only when processing a message
+        product = Product.objects.get(name=product_name)
+        product.price = new_price
+        product.save()
+
+        print(f"Updated price of {product_name} to {new_price}")
+    except Product.DoesNotExist:
+        print(f"Product {product_name} does not exist in the database.")
+    except Exception as e:
+        print(f"Error updating product price: {e}")
+
+def start_mqtt_listener():
+    """Start the MQTT client and subscribe to topics."""
+    client = mqtt.Client()
+
+    # Set username and password only if provided
+    if MQTT_USERNAME and MQTT_PASSWORD:
+        client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+
+    # Set up the message handler for price updates
+    client.on_message = on_price_update
+
+    try:
+        # Connect to the MQTT broker
+        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+
+        # Subscribe to the price update topic
+        client.subscribe(MQTT_TOPIC_PRICE_UPDATE)
+        print(f"Subscribed to topic: {MQTT_TOPIC_PRICE_UPDATE}")
+
+        # Start the MQTT loop
+        client.loop_forever()
+    except Exception as e:
+        print(f"Failed to start MQTT listener: {e}")
 
 def get_renderable_stats_elements():
     """Create a list of dicts for all StatsDisplays that can be rendered by view more easily"""
