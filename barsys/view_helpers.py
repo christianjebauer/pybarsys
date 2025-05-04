@@ -1,4 +1,6 @@
-import os.path
+import os
+import paho.mqtt.client as mqtt
+from dotenv import load_dotenv
 from collections import OrderedDict
 from itertools import groupby
 
@@ -12,6 +14,36 @@ from pybarsys import settings as pybarsys_settings
 from pybarsys.settings import PybarsysPreferences
 from .models import StatsDisplay, Purchase, Invoice, Product
 
+
+# Load environment variables
+load_dotenv()
+
+# Set default values for MQTT configuration
+MQTT_BROKER = os.getenv("MQTT_BROKER", "localhost")
+MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
+MQTT_TOPIC = os.getenv("MQTT_TOPIC", "purchases")
+CATEGORY_TO_NOTIFY = os.getenv("CATEGORY_TO_NOTIFY", None)  # Default to None
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", None)
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", None)
+
+def send_mqtt_message(product):
+    """Send an MQTT message with the product name."""
+    print(os.getenv("CATEGORY_TO_NOTIFY"))
+    print(CATEGORY_TO_NOTIFY)
+    print(product.category.name)
+    if product.category.name == CATEGORY_TO_NOTIFY:
+        client = mqtt.Client()
+
+        # Set username and password only if provided
+        if MQTT_USERNAME and MQTT_PASSWORD:
+            client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+
+        try:
+            client.connect(MQTT_BROKER, MQTT_PORT, 60)
+            client.publish(MQTT_TOPIC, product.name)
+            client.disconnect()
+        except Exception as e:
+            print(f"Failed to send MQTT message: {e}")
 
 def get_renderable_stats_elements():
     """Create a list of dicts for all StatsDisplays that can be rendered by view more easily"""

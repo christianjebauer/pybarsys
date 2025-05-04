@@ -23,8 +23,7 @@ from . import view_helpers
 from .forms import *
 from .templatetags.barsys_helpers import currency
 from .view_helpers import get_renderable_stats_elements, get_most_bought_product_for_user, \
-    get_most_bought_product_for_users
-
+    get_most_bought_product_for_users, send_mqtt_message
 
 class UserIsAdminMixin(UserPassesTestMixin):
     raise_exception = False
@@ -865,6 +864,12 @@ def purchase_no_free_item(form):
                         quantity=form.cleaned_data["quantity"], comment=comment)
     purchase.save()
 
+    # Send MQTT message if the product category matches
+    try:
+        send_mqtt_message(product)
+    except Exception as e:
+        print(f"Failed to send MQTT message: {e}")
+
     if form.cleaned_data["give_away_free"]:
         # create free item
         free_item = FreeItem.objects.create(giver=user, product=product,
@@ -891,6 +896,12 @@ def purchase_free_item(form):
 
     free_item.leftover_quantity -= quantity
     free_item.save()
+
+    # Send MQTT message if the product category matches
+    try:
+        send_mqtt_message(product)
+    except Exception as e:
+        print(f"Failed to send MQTT message: {e}")
 
     purchase = Purchase(user=user, product_name=product.name, product_amount=product.amount,
                         product_category=product.category.name, product_price=Decimal(0),
