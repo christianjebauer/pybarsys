@@ -6,5 +6,8 @@ set -eux
 # cd to root folder
 cd "${0%/*}/.."
 
+# Prepare the application
 scripts/prepare_pybarsys.sh
-gunicorn --bind :8000 pybarsys.wsgi:application
+
+# Start Gunicorn with the custom configuration
+gunicorn --config gunicorn_config.py --bind :8000 pybarsys.wsgi:application
